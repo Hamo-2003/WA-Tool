@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مولد روابط واتساب (نسخة مؤمنة) - تصميم م. محمد صبحي</title>
+<title>مولد روابط واتساب (نسخة 1.00) - تصميم م. محمد صبحي</title>
 <style>
   body {
     font-family: 'Cairo', sans-serif;
@@ -58,4 +58,338 @@
     font-weight: bold;
     cursor: pointer;
     margin: 5px;
-    tr<Generate></Generate>
+    transition: all 0.2s;
+    display: inline-block;
+  }
+  .main-buttons button:hover {
+      transform: scale(1.05);
+  }
+  #generateBtn { background-color: #1E90FF; }
+  #generateBtn:disabled {
+      background-color: #999;
+      cursor: not-allowed;
+      transform: none;
+  }
+  #downloadTxtBtn { background-color: #32CD32; }
+  #downloadCsvBtn { background-color: #FF8C00; }
+  #saveMsgBtn { background-color: #6a5acd; }
+
+  #resultsTable {
+    width: 100%;
+    margin-top: 20px;
+    border-collapse: collapse;
+  }
+  #resultsTable th, #resultsTable td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+  }
+  #resultsTable th {
+    background-color: #f2f2f2;
+  }
+  .whatsapp-btn {
+    padding: 8px 15px;
+    background-color: #25D366;
+    border: none;
+    border-radius: 5px;
+    color: white !important;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    transition: background-color 0.3s;
+  }
+  .whatsapp-btn:hover {
+    background-color: #128C7E;
+  }
+  .invalid-number {
+    background-color: #ffdddd;
+    color: #d8000c;
+  }
+  .invalid-number .whatsapp-btn {
+      background-color: #aaa;
+      pointer-events: none;
+      cursor: not-allowed;
+  }
+  .progress-container {
+      width: 100%;
+      background-color: #ddd;
+      border-radius: 5px;
+      margin-top: 15px;
+      display: none;
+  }
+  .progress-bar {
+      width: 0%;
+      height: 20px;
+      background-color: #4CAF50;
+      text-align: center;
+      line-height: 20px;
+      color: white;
+      border-radius: 5px;
+      transition: width 0.1s;
+  }
+  #timer-display {
+      font-size: 18px;
+      font-weight: bold;
+      color: #d9534f;
+      margin-top: 15px;
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body onload="initializeTool()">
+
+<header class="signature">
+  ✨ تصميم م. محمد صبحي ✨
+</header>
+
+<div class="container">
+  <h2>مولد روابط واتساب (نسخة 1.00)</h2>
+
+  <label for="numbers">📱 أرقام الهواتف (كل رقم في سطر، حد أقصى 8):</label>
+  <textarea id="numbers" placeholder="أضف الأرقام يدويًا هنا..."></textarea>
+
+  <label for="countryCode">🌍 كود الدولة (مثال: 966):</label>
+  <input type="text" id="countryCode" placeholder="مثال: 966 للسعودية">
+
+  <label for="message">💬 نص الرسالة:</label>
+  <textarea id="message" placeholder="اكتب رسالتك هنا..."></textarea>
+  
+  <label for="savedMessages">✉️ اختر رسالة محفوظة:</label>
+  <select id="savedMessages" onchange="useSavedMessage()">
+      <option value="">-- لا يوجد رسائل محفوظة --</option>
+  </select>
+
+  <div class="main-buttons">
+    <button id="generateBtn" onclick="generateLinks()">🚀 توليد الروابط</button>
+    <button id="saveMsgBtn" onclick="saveMessage()">💾 حفظ الرسالة الحالية</button>
+    <button id="downloadTxtBtn" onclick="downloadResults('txt')">💾 تحميل (TXT)</button>
+    <button id="downloadCsvBtn" onclick="downloadResults('csv')">📊 تحميل (CSV)</button>
+  </div>
+
+  <div id="timer-display"></div>
+  <div class="progress-container" id="progressContainer">
+      <div class="progress-bar" id="progressBar">0%</div>
+  </div>
+
+  <table id="resultsTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>الرقم الكامل</th>
+        <th>الحالة</th>
+        <th>إرسال</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<footer class="signature">
+  ⚡ Created by ENG. Mohamed Sobhy ⚡
+</footer>
+
+<script>
+const MAX_NUMBERS = 8;
+const COOLDOWN_MINUTES = 60;
+const COOLDOWN_KEY = 'cooldownEndTime';
+const SAVED_MESSAGES_KEY = 'whatsappGeneratorSavedMessages';
+let cooldownInterval;
+
+function initializeTool() {
+    loadSavedMessages();
+    checkCooldown();
+}
+
+function checkCooldown() {
+    const endTime = localStorage.getItem(COOLDOWN_KEY);
+    if (!endTime || new Date().getTime() > endTime) {
+        enableGeneration();
+        return;
+    }
+    disableGeneration();
+    
+    cooldownInterval = setInterval(() => {
+        const now = new Date().getTime();
+        const distance = endTime - now;
+        
+        if (distance < 0) {
+            enableGeneration();
+            return;
+        }
+        
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+        
+        document.getElementById('timer-display').textContent = `يرجى الانتظار. يمكنك المحاولة مرة أخرى خلال: ${minutes} دقيقة و ${seconds} ثانية`;
+    }, 1000);
+}
+
+function disableGeneration() {
+    document.getElementById('generateBtn').disabled = true;
+}
+
+function enableGeneration() {
+    clearInterval(cooldownInterval);
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('timer-display').textContent = '';
+    localStorage.removeItem(COOLDOWN_KEY);
+}
+
+function setCooldown() {
+    const endTime = new Date().getTime() + COOLDOWN_MINUTES * 60 * 1000;
+    localStorage.setItem(COOLDOWN_KEY, endTime);
+    checkCooldown();
+}
+
+function loadSavedMessages() {
+    const messages = JSON.parse(localStorage.getItem(SAVED_MESSAGES_KEY) || '[]');
+    const select = document.getElementById('savedMessages');
+    select.innerHTML = '<option value="">-- اختر رسالة --</option>';
+    if (messages.length > 0) {
+        messages.forEach((msg, index) => {
+            const option = document.createElement('option');
+            option.value = msg;
+            option.textContent = `رسالة ${index + 1}: ${msg.substring(0, 30)}...`;
+            select.appendChild(option);
+        });
+    } else {
+        select.innerHTML = '<option value="">-- لا يوجد رسائل محفوظة --</option>';
+    }
+}
+
+function saveMessage() {
+    const message = document.getElementById('message').value.trim();
+    if (!message) {
+        alert('لا يمكن حفظ رسالة فارغة.');
+        return;
+    }
+    let messages = JSON.parse(localStorage.getItem(SAVED_MESSAGES_KEY) || '[]');
+    if (messages.includes(message)) {
+        alert('هذه الرسالة محفوظة بالفعل.');
+        return;
+    }
+    messages.push(message);
+    localStorage.setItem(SAVED_MESSAGES_KEY, JSON.stringify(messages));
+    alert('تم حفظ الرسالة بنجاح!');
+    loadSavedMessages();
+}
+
+function useSavedMessage() {
+    const select = document.getElementById('savedMessages');
+    const message = select.value;
+    if (message) {
+        document.getElementById('message').value = message;
+    }
+}
+
+async function generateLinks() {
+  const numbersInput = document.getElementById('numbers').value.trim();
+  const countryCode = document.getElementById('countryCode').value.trim().replace('+', '');
+  const message = encodeURIComponent(document.getElementById('message').value.trim());
+  
+  if (!numbersInput || !countryCode) {
+    alert('يرجى إدخال أرقام الهواتف وكود الدولة.');
+    return;
+  }
+
+  let numbers = numbersInput.split(/\s+/).filter(n => n);
+  
+  if (numbers.length > MAX_NUMBERS) {
+      alert(`لا يمكن معالجة أكثر من ${MAX_NUMBERS} أرقام في المرة الواحدة. تم إدخال ${numbers.length} رقم.`);
+      numbers = numbers.slice(0, MAX_NUMBERS);
+      document.getElementById('numbers').value = numbers.join('\n');
+  }
+  
+  if (numbers.length === 0) {
+      alert('لم يتم إدخال أرقام صالحة.');
+      return;
+  }
+
+  const table = document.getElementById('resultsTable');
+  const tbody = table.querySelector('tbody');
+  tbody.innerHTML = '';
+  
+  const progressContainer = document.getElementById('progressContainer');
+  const progressBar = document.getElementById('progressBar');
+  progressContainer.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressBar.textContent = '0%';
+
+  for (let i = 0; i < numbers.length; i++) {
+    const num = numbers[i];
+    const cleanNum = num.replace(/\D/g, '').replace(/^0+/, '');
+    const isValid = cleanNum.length >= 7 && cleanNum.length <= 13;
+    const fullNumber = countryCode + cleanNum;
+    const whatsappLink = `https://wa.me/${fullNumber}?text=${message}`;
+
+    const row = tbody.insertRow();
+    row.className = isValid ? '' : 'invalid-number';
+    
+    row.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${fullNumber}</td>
+      <td>${isValid ? 'صالح' : 'غير صالح'}</td>
+      <td><a href="${whatsappLink}" target="_blank" class="whatsapp-btn">${isValid ? 'أرسل' : 'معطل'}</a></td>
+    `;
+
+    const percent = Math.round(((i + 1) / numbers.length) * 100);
+    progressBar.style.width = percent + '%';
+    progressBar.textContent = percent + '%';
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+
+  table.style.display = 'table';
+  
+  setCooldown();
+}
+
+function downloadResults(format) {
+  const tableBody = document.getElementById('resultsTable').querySelector('tbody');
+  if (tableBody.rows.length === 0) {
+    alert('يرجى توليد الروابط أولاً قبل محاولة التحميل.');
+    return;
+  }
+
+  let content = '';
+  let mimeType = '';
+  let fileExtension = '';
+
+  if (format === 'csv') {
+    content = 'الرقم,الحالة,الرابط\n';
+    mimeType = 'text/csv;charset=utf-8;';
+    fileExtension = 'csv';
+    for (const row of tableBody.rows) {
+      const number = row.cells[1].textContent;
+      const status = row.cells[2].textContent;
+      const link = row.cells[3].querySelector('a').href;
+      content += `"${number}","${status}","${link}"\n`;
+    }
+  } else {
+    content = 'الرقم\tالحالة\tالرابط\n\n';
+    mimeType = 'text/plain;charset=utf-8;';
+    fileExtension = 'txt';
+    for (const row of tableBody.rows) {
+      const number = row.cells[1].textContent;
+      const status = row.cells[2].textContent;
+      const link = row.cells[3].querySelector('a').href;
+      content += `${number}\t${status}\t${link}\n`;
+    }
+  }
+
+  const blob = new Blob([`\uFEFF${content}`], { type: mimeType });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `whatsapp_links.${fileExtension}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+</script>
+
+</body>
+</html>
